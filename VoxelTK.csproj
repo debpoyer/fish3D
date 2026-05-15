@@ -1,21 +1,37 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PublishAot>true</PublishAot>
   </PropertyGroup>
 
+  <!-- opentk no die aot -->
   <ItemGroup>
-    <PackageReference Include="OpenTK" Version="4.9.4" />
-    <PackageReference Include="SimplexNoise" Version="2.0.0" />
-    <PackageReference Include="StbImageSharp" Version="2.30.15" />
+    <TrimmerRootAssembly Include="OpenTK.Core"/>
+    <TrimmerRootAssembly Include="OpenTK.Windowing.Common"/>
+    <TrimmerRootAssembly Include="OpenTK.Windowing.Desktop"/>
+    <TrimmerRootAssembly Include="OpenTK.Graphics"/>
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Textures\" />
-    <Folder Include="Shaders\" />
+    <PackageReference Include="OpenTK" Version="4.9.4"/>
+    <PackageReference Include="SimplexNoise" Version="2.0.0"/>
+    <PackageReference Include="StbImageSharp" Version="2.30.15"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Textures"/>
+    <Folder Include="Shaders"/>
+  </ItemGroup>
+ <ItemGroup>
+     <None Update="Textures\**\*">
+       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+     </None>
+     <None Update="Shaders\**\*">
+       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+ </ItemGroup>
 </Project>

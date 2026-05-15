@@ -1,9 +1,11 @@
 {
   "version": 2,
-  "dgSpecHash": "NtBLAfSmP/c=",
+  "dgSpecHash": "mdreeegpE14=",
   "success": true,
   "projectFilePath": "/home/pogo/Desktop/fish3D/VoxelTK.csproj",
   "expectedPackageFiles": [
+    "/home/pogo/.nuget/packages/microsoft.dotnet.ilcompiler/10.0.6/microsoft.dotnet.ilcompiler.10.0.6.nupkg.sha512",
+    "/home/pogo/.nuget/packages/microsoft.net.illink.tasks/10.0.6/microsoft.net.illink.tasks.10.0.6.nupkg.sha512",
     "/home/pogo/.nuget/packages/opentk/4.9.4/opentk.4.9.4.nupkg.sha512",
     "/home/pogo/.nuget/packages/opentk.audio.openal/4.9.4/opentk.audio.openal.4.9.4.nupkg.sha512",
     "/home/pogo/.nuget/packages/opentk.compute/4.9.4/opentk.compute.4.9.4.nupkg.sha512",
@@ -15,8 +17,13 @@
     "/home/pogo/.nuget/packages/opentk.windowing.common/4.9.4/opentk.windowing.common.4.9.4.nupkg.sha512",
     "/home/pogo/.nuget/packages/opentk.windowing.desktop/4.9.4/opentk.windowing.desktop.4.9.4.nupkg.sha512",
     "/home/pogo/.nuget/packages/opentk.windowing.graphicslibraryframework/4.9.4/opentk.windowing.graphicslibraryframework.4.9.4.nupkg.sha512",
+    "/home/pogo/.nuget/packages/runtime.linux-x64.microsoft.dotnet.ilcompiler/10.0.6/runtime.linux-x64.microsoft.dotnet.ilcompiler.10.0.6.nupkg.sha512",
     "/home/pogo/.nuget/packages/simplexnoise/2.0.0/simplexnoise.2.0.0.nupkg.sha512",
-    "/home/pogo/.nuget/packages/stbimagesharp/2.30.15/stbimagesharp.2.30.15.nupkg.sha512"
+    "/home/pogo/.nuget/packages/stbimagesharp/2.30.15/stbimagesharp.2.30.15.nupkg.sha512",
+    "/home/pogo/.nuget/packages/microsoft.netcore.app.runtime.linux-x64/10.0.6/microsoft.netcore.app.runtime.linux-x64.10.0.6.nupkg.sha512",
+    "/home/pogo/.nuget/packages/microsoft.aspnetcore.app.runtime.linux-x64/10.0.6/microsoft.aspnetcore.app.runtime.linux-x64.10.0.6.nupkg.sha512",
+    "/home/pogo/.nuget/packages/microsoft.netcore.app.runtime.nativeaot.linux-x64/10.0.6/microsoft.netcore.app.runtime.nativeaot.linux-x64.10.0.6.nupkg.sha512",
+    "/home/pogo/.nuget/packages/runtime.linux-x64.microsoft.dotnet.ilcompiler/10.0.6/runtime.linux-x64.microsoft.dotnet.ilcompiler.10.0.6.nupkg.sha512"
   ],
   "logs": []
 }

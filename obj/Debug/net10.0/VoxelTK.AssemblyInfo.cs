@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("VoxelTK")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+31a6e443fd2295b29982a96844c92f4ec350edcf")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3fab3ccfaf7edc5b1c75b46ae132c78a7a0e7488")]
 [assembly: System.Reflection.AssemblyProductAttribute("VoxelTK")]
 [assembly: System.Reflection.AssemblyTitleAttribute("VoxelTK")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
