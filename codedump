@@ -1,0 +1,1251 @@
+﻿using OpenTK.Mathematics;
+using OpenTK.Windowing.Common;
+using OpenTK.Windowing.GraphicsLibraryFramework;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace VoxelTK
+{
+    internal class Camera
+    {
+        // Consts
+        private float CameraSpeed { get; set; } = 8f;
+        private float ScreenWidth;
+        private float ScreenHeight;
+        private float CameraSensitivity { get; set; } = 100f;
+
+        // Position Variables
+        public Vector3 Position;
+
+        Vector3 Up = Vector3.UnitZ;
+        Vector3 Front = Vector3.UnitY;
+        Vector3 Right = Vector3.UnitX;
+
+        // Rotation Variables
+
+        private float Pitch;
+        private float Yaw = 90.0f;
+        
+        private bool FirstMove { get; set; } = true;
+        public Vector2 LastPos;
+
+        public Camera(float width, float height, Vector3 position) 
+        {
+            ScreenWidth = width;
+            ScreenHeight = height;
+            this.Position = position;
+        }
+
+        public Matrix4 GetViewMatrix() 
+        { 
+            return Matrix4.LookAt(Position, Position + Front, Up);
+        }
+        public Matrix4 GetProjectionMatrix() 
+        {
+            return Matrix4.CreatePerspectiveFieldOfView(
+                MathHelper.DegreesToRadians(45.0f),
+                (float)ScreenWidth / (float)ScreenHeight,
+                0.1f, 100.0f);
+        }
+
+        private void UpdateVectors()
+        {
+            Pitch = Math.Clamp(Pitch, -89f, 89f);
+
+            Front.X = MathF.Cos(MathHelper.DegreesToRadians(Pitch)) * MathF.Cos(MathHelper.DegreesToRadians(Yaw));
+            Front.Y = MathF.Cos(MathHelper.DegreesToRadians(Pitch)) * MathF.Sin(MathHelper.DegreesToRadians(Yaw));
+            Front.Z = MathF.Sin(MathHelper.DegreesToRadians(Pitch));
+
+            Front = Vector3.Normalize(Front);
+
+            Right = Vector3.Normalize(Vector3.Cross(Front, Vector3.UnitZ));
+            Up = Vector3.Normalize(Vector3.Cross(Right, Front));
+        }
+
+        public void Input(KeyboardState input, MouseState mouse, FrameEventArgs e) 
+        {
+            if (input.IsKeyDown(Keys.W))
+            {
+                Position += Front * CameraSpeed * (float)e.Time;
+            }
+            if (input.IsKeyDown(Keys.A))
+            {
+                Position -= Right * CameraSpeed * (float)e.Time;
+            }
+            if (input.IsKeyDown(Keys.S))
+            {
+                Position -= Front * CameraSpeed * (float)e.Time;
+            }
+            if (input.IsKeyDown(Keys.D))
+            {
+                Position += Right * CameraSpeed * (float)e.Time;
+            }
+
+            if (input.IsKeyDown(Keys.Space))
+            {
+                Position.Z += CameraSpeed * (float)e.Time;
+            }
+            if (input.IsKeyDown(Keys.LeftControl))
+            {
+                Position.Z -= CameraSpeed * (float)e.Time;
+            }
+
+            if (FirstMove)
+            {
+                LastPos = new Vector2(mouse.X, mouse.Y);
+                FirstMove = false;
+            }
+            else
+            {
+                var deltaX = mouse.X - LastPos.X;
+                var deltaY = mouse.Y - LastPos.Y;
+                LastPos = new Vector2(mouse.X, mouse.Y);
+
+                Yaw -= deltaX * CameraSensitivity * (float)e.Time;
+                Pitch -= deltaY * CameraSensitivity * (float)e.Time;
+            }
+
+            UpdateVectors();
+        }
+
+        public void Update(KeyboardState input, MouseState mouse, FrameEventArgs e) {
+            Input(input, mouse, e);
+        }
+
+
+    }
+}
+﻿using VoxelTK.Graphics;
+using VoxelTK.World;
+using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
+using OpenTK.Windowing.Common;
+using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.GraphicsLibraryFramework;
+
+namespace VoxelTK
+{
+    internal class Game : GameWindow
+    {
+        Chunk chunk;
+        ShaderProgram program;
+
+        // Camera
+        Camera camera;
+
+        public int Width, Height;
+
+        public Game(int Width, int Height) : base(GameWindowSettings.Default, NativeWindowSettings.Default)
+        {
+            this.Width = Width;
+            this.Height = Height;
+
+            CenterWindow(new Vector2i(Width, Height));
+        }
+
+        protected override void OnResize(ResizeEventArgs e)
+        {
+            base.OnResize(e);
+
+            GL.Viewport(0, 0, e.Width, e.Height);
+            this.Width = e.Width;
+            this.Height = e.Height;
+        }
+
+        protected override void OnLoad()
+        {
+            base.OnLoad();
+
+            chunk = new Chunk(new Vector3(0, 0, 0));
+            program = new ShaderProgram("Default.vert", "Default.frag");
+
+            GL.Enable(EnableCap.DepthTest);
+            GL.FrontFace(FrontFaceDirection.Cw);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
+
+            camera = new Camera((float)Width, (float)Height, Vector3.Zero);
+            CursorState = CursorState.Grabbed;
+        }
+
+        protected override void OnUnload()
+        {
+            base.OnUnload();
+
+            chunk.Delete();
+            program.Delete();
+        }
+
+        protected override void OnRenderFrame(FrameEventArgs args)
+        {
+            GL.ClearColor(0.3f, 0.3f, 1f, 1f);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            Matrix4 model = Matrix4.Identity;
+            Matrix4 view = camera.GetViewMatrix();
+            Matrix4 projection = camera.GetProjectionMatrix();
+
+            int modelLocation = GL.GetUniformLocation(program.ID, "model");
+            int viewLocation = GL.GetUniformLocation(program.ID, "view");
+            int projectionLocation = GL.GetUniformLocation(program.ID, "projection");
+
+            GL.UniformMatrix4(modelLocation, true, ref model);
+            GL.UniformMatrix4(viewLocation, true, ref view);
+            GL.UniformMatrix4(projectionLocation, true, ref projection);
+
+            chunk.Render(program);
+
+            Context.SwapBuffers();
+            base.OnRenderFrame(args);
+        }
+
+        protected override void OnUpdateFrame(FrameEventArgs args)
+        {
+            MouseState mouse = MouseState;
+            KeyboardState input = KeyboardState;
+
+            base.OnUpdateFrame(args);
+            camera.Update(input, mouse, args);
+        }
+    }
+}﻿namespace VoxelTK
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            using (Game game = new Game(1280, 720))
+            {
+                game.Run();
+            }
+        }
+    }
+}﻿using OpenTK.Mathematics;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace VoxelTK.World
+{
+    internal class Block
+    {
+        public Vector3 position;
+        public BlockType type;
+
+        public Dictionary<Faces, FaceData> faces;
+
+        public List<Vector2> dirtUV = new List<Vector2>
+        {
+            new Vector2(0f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(1f, 0f),
+            new Vector2(0f, 0f),
+        };
+
+        public Block(Vector3 position, BlockType blockType = BlockType.AIR)
+        {
+            type = blockType;
+            this.position = position;
+
+            faces = new Dictionary<Faces, FaceData>
+            {
+                {Faces.FRONT, new FaceData {
+                    vertices = AddTransformedVertices(FaceDataRaw.rawVertexData[Faces.FRONT]),
+                    uv = dirtUV
+                } },
+                {Faces.BACK, new FaceData {
+                    vertices = AddTransformedVertices(FaceDataRaw.rawVertexData[Faces.BACK]),
+                    uv = dirtUV
+                } },
+                {Faces.LEFT, new FaceData {
+                    vertices = AddTransformedVertices(FaceDataRaw.rawVertexData[Faces.LEFT]),
+                    uv = dirtUV
+                } },
+                {Faces.RIGHT, new FaceData {
+                    vertices = AddTransformedVertices(FaceDataRaw.rawVertexData[Faces.RIGHT]),
+                    uv = dirtUV
+                } },
+                {Faces.TOP, new FaceData {
+                    vertices = AddTransformedVertices(FaceDataRaw.rawVertexData[Faces.TOP]),
+                    uv = dirtUV
+                } },
+                {Faces.BOTTOM, new FaceData {
+                    vertices = AddTransformedVertices(FaceDataRaw.rawVertexData[Faces.BOTTOM]),
+                    uv = dirtUV
+                } },
+            };
+        }
+
+        public List<Vector3> AddTransformedVertices(List<Vector3> vertices)
+        {
+            List<Vector3> transformedVertices = new List<Vector3>();
+            foreach (var vert in vertices)
+            {
+                transformedVertices.Add(vert + position);
+            }
+            return transformedVertices;
+        }
+
+        public FaceData GetFace(Faces face)
+        {
+            return faces[face];
+        }
+    }
+}﻿using OpenTK.Mathematics;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace VoxelTK.World
+{
+    public enum BlockType
+    {
+        DIRT,
+        AIR
+    }
+
+    public enum Faces
+    {
+        FRONT,
+        BACK,
+        LEFT,
+        RIGHT,
+        TOP,
+        BOTTOM
+    }
+
+    public struct FaceData
+    {
+        public List<Vector3> vertices;
+        public List<Vector2> uv;
+    }
+
+    public struct FaceDataRaw
+    {
+        public static readonly Dictionary<Faces, List<Vector3>> rawVertexData = new Dictionary<Faces, List<Vector3>>
+        {
+            {Faces.FRONT, new List<Vector3>()
+            {
+                new Vector3(-0.5f, 0.5f, 0.5f), // topleft vert
+                new Vector3(0.5f, 0.5f, 0.5f), // topright vert
+                new Vector3(0.5f, -0.5f, 0.5f), // bottomright vert
+                new Vector3(-0.5f, -0.5f, 0.5f), // bottomleft vert
+            } },
+            {Faces.BACK, new List<Vector3>()
+            {
+                new Vector3(0.5f, 0.5f, -0.5f), // topleft vert
+                new Vector3(-0.5f, 0.5f, -0.5f), // topright vert
+                new Vector3(-0.5f, -0.5f, -0.5f), // bottomright vert
+                new Vector3(0.5f, -0.5f, -0.5f), // bottomleft vert
+            } },
+            {Faces.LEFT, new List<Vector3>()
+            {
+                new Vector3(-0.5f, 0.5f, -0.5f), // topleft vert
+                new Vector3(-0.5f, 0.5f, 0.5f), // topright vert
+                new Vector3(-0.5f, -0.5f, 0.5f), // bottomright vert
+                new Vector3(-0.5f, -0.5f, -0.5f), // bottomleft vert
+            } },
+            {Faces.RIGHT, new List<Vector3>()
+            {
+                new Vector3(0.5f, 0.5f, 0.5f), // topleft vert
+                new Vector3(0.5f, 0.5f, -0.5f), // topright vert
+                new Vector3(0.5f, -0.5f, -0.5f), // bottomright vert
+                new Vector3(0.5f, -0.5f, 0.5f), // bottomleft vert
+            } },
+            {Faces.TOP, new List<Vector3>()
+            {
+                new Vector3(-0.5f, 0.5f, -0.5f), // topleft vert
+                new Vector3(0.5f, 0.5f, -0.5f), // topright vert
+                new Vector3(0.5f, 0.5f, 0.5f), // bottomright vert
+                new Vector3(-0.5f, 0.5f, 0.5f), // bottomleft vert
+            } },
+            {Faces.BOTTOM, new List<Vector3>()
+            {
+                new Vector3(-0.5f, -0.5f, 0.5f), // topleft vert
+                new Vector3(0.5f, -0.5f, 0.5f), // topright vert
+                new Vector3(0.5f, -0.5f, -0.5f), // bottomright vert
+                new Vector3(-0.5f, -0.5f, -0.5f), // bottomleft vert
+            } },
+        };
+    }
+}﻿using VoxelTK.Graphics;
+using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using VoxelTK.World;
+
+namespace VoxelTK.World
+{
+    internal class Chunk
+    {
+        public List<Vector3> chunkVerts;
+        public List<Vector2> chunkUVs;
+        public List<uint> chunkIndices;
+
+        const int SIZE = 16;
+        const int HEIGHT = 384;
+        public Vector3 position;
+
+        public uint indexCount;
+
+        VAO chunkVAO;
+        VBO chunkVertexVBO;
+        VBO chunkUVVBO;
+        IBO chunkIBO;
+
+        Texture texture;
+
+        Block[,,] chunkBlocks = new Block[SIZE, HEIGHT, SIZE];
+
+        public Chunk(Vector3 position)
+        {
+            this.position = position;
+
+            chunkVerts = new List<Vector3>();
+            chunkUVs = new List<Vector2>();
+            chunkIndices = new List<uint>();
+
+            float[,] heightmap = GenChunk();
+            GenBlocks(heightmap);
+            GenFaces(heightmap);
+            BuildChunk();
+        }
+
+        public float[,] GenChunk()
+        {
+            float[,] heightmap = new float[SIZE, SIZE];
+
+            SimplexNoise.Noise.Seed = 123456;
+            for (int x = 0; x < SIZE; x++)
+            {
+                for (int z = 0; z < SIZE; z++)
+                {
+                    heightmap[x, z] = SimplexNoise.Noise.CalcPixel2D(x, z, 0.01f);
+                }
+            }
+
+            return heightmap;
+        }
+
+        public void GenBlocks(float[,] heightmap)
+        {
+            for (int x = 0; x < SIZE; x++)
+            {
+                for (int z = 0; z < SIZE; z++)
+                {
+                    int columnHeight = (int)(heightmap[x, z] / 10);
+                    for (int y = 0; y < HEIGHT; y++)
+                    {
+                        if (y < columnHeight)
+                        {
+                            chunkBlocks[x, y, z] = new Block(new Vector3(x, y, z), BlockType.DIRT);
+                        }
+                        else
+                        {
+                            chunkBlocks[x, y, z] = new Block(new Vector3(x, y, z), BlockType.AIR);
+                        }
+                    }
+                }
+            }
+        }
+
+        public void GenFaces(float[,] heightmap)
+        {
+            for (int x = 0; x < SIZE; x++)
+            {
+                for (int z = 0; z < SIZE; z++)
+                {
+                    int columnHeight = (int)(heightmap[x, z] / 10);
+                    for (int y = 0; y < columnHeight; y++)
+                    {
+                        int numFaces = 0;
+
+                        // Left Face
+                        if (x > 0)
+                        {
+                            if (chunkBlocks[x - 1, y, z].type == BlockType.AIR)
+                            {
+                                IntegrateFace(chunkBlocks[x, y, z], Faces.LEFT);
+                                numFaces++;
+                            }
+                        }
+                        else
+                        {
+                            IntegrateFace(chunkBlocks[x, y, z], Faces.LEFT);
+                            numFaces++;
+                        }
+
+                        // Right Face
+                        if (x < SIZE - 1)
+                        {
+                            if (chunkBlocks[x + 1, y, z].type == BlockType.AIR)
+                            {
+                                IntegrateFace(chunkBlocks[x, y, z], Faces.RIGHT);
+                                numFaces++;
+                            }
+                        }
+                        else
+                        {
+                            IntegrateFace(chunkBlocks[x, y, z], Faces.RIGHT);
+                            numFaces++;
+                        }
+
+                        // Top Face
+                        if (y < columnHeight - 1)
+                        {
+                            if (chunkBlocks[x, y + 1, z].type == BlockType.AIR)
+                            {
+                                IntegrateFace(chunkBlocks[x, y, z], Faces.TOP);
+                                numFaces++;
+                            }
+                        }
+                        else
+                        {
+                            IntegrateFace(chunkBlocks[x, y, z], Faces.TOP);
+                            numFaces++;
+                        }
+
+                        // Bottom Face
+                        if (y > 0)
+                        {
+                            if (chunkBlocks[x, y - 1, z].type == BlockType.AIR)
+                            {
+                                IntegrateFace(chunkBlocks[x, y, z], Faces.BOTTOM);
+                                numFaces++;
+                            }
+                        }
+                        else
+                        {
+                            IntegrateFace(chunkBlocks[x, y, z], Faces.BOTTOM);
+                            numFaces++;
+                        }
+
+                        // Front Face
+                        if (z < SIZE - 1)
+                        {
+                            if (chunkBlocks[x, y, z + 1].type == BlockType.AIR)
+                            {
+                                IntegrateFace(chunkBlocks[x, y, z], Faces.FRONT);
+                                numFaces++;
+                            }
+                        }
+                        else
+                        {
+                            IntegrateFace(chunkBlocks[x, y, z], Faces.FRONT);
+                            numFaces++;
+                        }
+
+                        // Back Face
+                        if (z > 0)
+                        {
+                            if (chunkBlocks[x, y, z - 1].type == BlockType.AIR)
+                            {
+                                IntegrateFace(chunkBlocks[x, y, z], Faces.BACK);
+                                numFaces++;
+                            }
+                        }
+                        else
+                        {
+                            IntegrateFace(chunkBlocks[x, y, z], Faces.BACK);
+                            numFaces++;
+                        }
+
+                        AddIndices(numFaces);
+                    }
+                }
+            }
+        }
+
+        public void IntegrateFace(Block block, Faces face)
+        {
+            var faceData = block.GetFace(face);
+            chunkVerts.AddRange(faceData.vertices);
+            chunkUVs.AddRange(faceData.uv);
+        }
+
+        public void AddIndices(int amtFaces)
+        {
+            for (int i = 0; i < amtFaces; i++)
+            {
+                chunkIndices.Add(0 + indexCount);
+                chunkIndices.Add(1 + indexCount);
+                chunkIndices.Add(2 + indexCount);
+                chunkIndices.Add(2 + indexCount);
+                chunkIndices.Add(3 + indexCount);
+                chunkIndices.Add(0 + indexCount);
+
+                indexCount += 4;
+            }
+        }
+
+        public void BuildChunk()
+        {
+            chunkVAO = new VAO();
+            chunkVAO.Bind();
+
+            chunkVertexVBO = new VBO(chunkVerts);
+            chunkVertexVBO.Bind();
+            chunkVAO.LinkToVAO(0, 3, chunkVertexVBO);
+
+            chunkUVVBO = new VBO(chunkUVs);
+            chunkUVVBO.Bind();
+            chunkVAO.LinkToVAO(1, 2, chunkUVVBO);
+
+            chunkIBO = new IBO(chunkIndices);
+
+            texture = new Texture("grass_block_top.png");
+        }
+
+        public void Render(ShaderProgram program)
+        {
+            program.Bind();
+            chunkVAO.Bind();
+            chunkIBO.Bind();
+            texture.Bind();
+            GL.DrawElements(PrimitiveType.Triangles, chunkIndices.Count, DrawElementsType.UnsignedInt, 0);
+        }
+
+        public void Delete()
+        {
+            chunkVAO.Delete();
+            chunkVertexVBO.Delete();
+            chunkUVVBO.Delete();
+            chunkIBO.Delete();
+            texture.Delete();
+        }
+    }
+}﻿using OpenTK.Mathematics;
+using OpenTK.Windowing.Common;
+using OpenTK.Windowing.GraphicsLibraryFramework;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace VoxelTK
+{
+    internal class Camera
+    {
+        // Consts
+        private float CameraSpeed { get; set; } = 8f;
+        private float ScreenWidth;
+        private float ScreenHeight;
+        private float CameraSensitivity { get; set; } = 100f;
+
+        // Position Variables
+        public Vector3 Position;
+
+        Vector3 Up = Vector3.UnitZ;
+        Vector3 Front = Vector3.UnitY;
+        Vector3 Right = Vector3.UnitX;
+
+        // Rotation Variables
+
+        private float Pitch;
+        private float Yaw = 90.0f;
+        
+        private bool FirstMove { get; set; } = true;
+        public Vector2 LastPos;
+
+        public Camera(float width, float height, Vector3 position) 
+        {
+            ScreenWidth = width;
+            ScreenHeight = height;
+            this.Position = position;
+        }
+
+        public Matrix4 GetViewMatrix() 
+        { 
+            return Matrix4.LookAt(Position, Position + Front, Up);
+        }
+        public Matrix4 GetProjectionMatrix() 
+        {
+            return Matrix4.CreatePerspectiveFieldOfView(
+                MathHelper.DegreesToRadians(45.0f),
+                (float)ScreenWidth / (float)ScreenHeight,
+                0.1f, 100.0f);
+        }
+
+        private void UpdateVectors()
+        {
+            Pitch = Math.Clamp(Pitch, -89f, 89f);
+
+            Front.X = MathF.Cos(MathHelper.DegreesToRadians(Pitch)) * MathF.Cos(MathHelper.DegreesToRadians(Yaw));
+            Front.Y = MathF.Cos(MathHelper.DegreesToRadians(Pitch)) * MathF.Sin(MathHelper.DegreesToRadians(Yaw));
+            Front.Z = MathF.Sin(MathHelper.DegreesToRadians(Pitch));
+
+            Front = Vector3.Normalize(Front);
+
+            Right = Vector3.Normalize(Vector3.Cross(Front, Vector3.UnitZ));
+            Up = Vector3.Normalize(Vector3.Cross(Right, Front));
+        }
+
+        public void Input(KeyboardState input, MouseState mouse, FrameEventArgs e) 
+        {
+            if (input.IsKeyDown(Keys.W))
+            {
+                Position += Front * CameraSpeed * (float)e.Time;
+            }
+            if (input.IsKeyDown(Keys.A))
+            {
+                Position -= Right * CameraSpeed * (float)e.Time;
+            }
+            if (input.IsKeyDown(Keys.S))
+            {
+                Position -= Front * CameraSpeed * (float)e.Time;
+            }
+            if (input.IsKeyDown(Keys.D))
+            {
+                Position += Right * CameraSpeed * (float)e.Time;
+            }
+
+            if (input.IsKeyDown(Keys.Space))
+            {
+                Position.Z += CameraSpeed * (float)e.Time;
+            }
+            if (input.IsKeyDown(Keys.LeftControl))
+            {
+                Position.Z -= CameraSpeed * (float)e.Time;
+            }
+
+            if (FirstMove)
+            {
+                LastPos = new Vector2(mouse.X, mouse.Y);
+                FirstMove = false;
+            }
+            else
+            {
+                var deltaX = mouse.X - LastPos.X;
+                var deltaY = mouse.Y - LastPos.Y;
+                LastPos = new Vector2(mouse.X, mouse.Y);
+
+                Yaw -= deltaX * CameraSensitivity * (float)e.Time;
+                Pitch -= deltaY * CameraSensitivity * (float)e.Time;
+            }
+
+            UpdateVectors();
+        }
+
+        public void Update(KeyboardState input, MouseState mouse, FrameEventArgs e) {
+            Input(input, mouse, e);
+        }
+
+
+    }
+}
+﻿using VoxelTK.Graphics;
+using VoxelTK.World;
+using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
+using OpenTK.Windowing.Common;
+using OpenTK.Windowing.Desktop;
+using OpenTK.Windowing.GraphicsLibraryFramework;
+
+namespace VoxelTK
+{
+    internal class Game : GameWindow
+    {
+        Chunk chunk;
+        ShaderProgram program;
+
+        // Camera
+        Camera camera;
+
+        public int Width, Height;
+
+        public Game(int Width, int Height) : base(GameWindowSettings.Default, NativeWindowSettings.Default)
+        {
+            this.Width = Width;
+            this.Height = Height;
+
+            CenterWindow(new Vector2i(Width, Height));
+        }
+
+        protected override void OnResize(ResizeEventArgs e)
+        {
+            base.OnResize(e);
+
+            GL.Viewport(0, 0, e.Width, e.Height);
+            this.Width = e.Width;
+            this.Height = e.Height;
+        }
+
+        protected override void OnLoad()
+        {
+            base.OnLoad();
+
+            chunk = new Chunk(new Vector3(0, 0, 0));
+            program = new ShaderProgram("Default.vert", "Default.frag");
+
+            GL.Enable(EnableCap.DepthTest);
+            GL.FrontFace(FrontFaceDirection.Cw);
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(CullFaceMode.Back);
+
+            camera = new Camera((float)Width, (float)Height, Vector3.Zero);
+            CursorState = CursorState.Grabbed;
+        }
+
+        protected override void OnUnload()
+        {
+            base.OnUnload();
+
+            chunk.Delete();
+            program.Delete();
+        }
+
+        protected override void OnRenderFrame(FrameEventArgs args)
+        {
+            GL.ClearColor(0.3f, 0.3f, 1f, 1f);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            Matrix4 model = Matrix4.Identity;
+            Matrix4 view = camera.GetViewMatrix();
+            Matrix4 projection = camera.GetProjectionMatrix();
+
+            int modelLocation = GL.GetUniformLocation(program.ID, "model");
+            int viewLocation = GL.GetUniformLocation(program.ID, "view");
+            int projectionLocation = GL.GetUniformLocation(program.ID, "projection");
+
+            GL.UniformMatrix4(modelLocation, true, ref model);
+            GL.UniformMatrix4(viewLocation, true, ref view);
+            GL.UniformMatrix4(projectionLocation, true, ref projection);
+
+            chunk.Render(program);
+
+            Context.SwapBuffers();
+            base.OnRenderFrame(args);
+        }
+
+        protected override void OnUpdateFrame(FrameEventArgs args)
+        {
+            MouseState mouse = MouseState;
+            KeyboardState input = KeyboardState;
+
+            base.OnUpdateFrame(args);
+            camera.Update(input, mouse, args);
+        }
+    }
+}﻿namespace VoxelTK
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            using (Game game = new Game(1280, 720))
+            {
+                game.Run();
+            }
+        }
+    }
+}﻿using OpenTK.Mathematics;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace VoxelTK.World
+{
+    internal class Block
+    {
+        public Vector3 position;
+        public BlockType type;
+
+        public Dictionary<Faces, FaceData> faces;
+
+        public List<Vector2> dirtUV = new List<Vector2>
+        {
+            new Vector2(0f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(1f, 0f),
+            new Vector2(0f, 0f),
+        };
+
+        public Block(Vector3 position, BlockType blockType = BlockType.AIR)
+        {
+            type = blockType;
+            this.position = position;
+
+            faces = new Dictionary<Faces, FaceData>
+            {
+                {Faces.FRONT, new FaceData {
+                    vertices = AddTransformedVertices(FaceDataRaw.rawVertexData[Faces.FRONT]),
+                    uv = dirtUV
+                } },
+                {Faces.BACK, new FaceData {
+                    vertices = AddTransformedVertices(FaceDataRaw.rawVertexData[Faces.BACK]),
+                    uv = dirtUV
+                } },
+                {Faces.LEFT, new FaceData {
+                    vertices = AddTransformedVertices(FaceDataRaw.rawVertexData[Faces.LEFT]),
+                    uv = dirtUV
+                } },
+                {Faces.RIGHT, new FaceData {
+                    vertices = AddTransformedVertices(FaceDataRaw.rawVertexData[Faces.RIGHT]),
+                    uv = dirtUV
+                } },
+                {Faces.TOP, new FaceData {
+                    vertices = AddTransformedVertices(FaceDataRaw.rawVertexData[Faces.TOP]),
+                    uv = dirtUV
+                } },
+                {Faces.BOTTOM, new FaceData {
+                    vertices = AddTransformedVertices(FaceDataRaw.rawVertexData[Faces.BOTTOM]),
+                    uv = dirtUV
+                } },
+            };
+        }
+
+        public List<Vector3> AddTransformedVertices(List<Vector3> vertices)
+        {
+            List<Vector3> transformedVertices = new List<Vector3>();
+            foreach (var vert in vertices)
+            {
+                transformedVertices.Add(vert + position);
+            }
+            return transformedVertices;
+        }
+
+        public FaceData GetFace(Faces face)
+        {
+            return faces[face];
+        }
+    }
+}﻿using OpenTK.Mathematics;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace VoxelTK.World
+{
+    public enum BlockType
+    {
+        DIRT,
+        AIR
+    }
+
+    public enum Faces
+    {
+        FRONT,
+        BACK,
+        LEFT,
+        RIGHT,
+        TOP,
+        BOTTOM
+    }
+
+    public struct FaceData
+    {
+        public List<Vector3> vertices;
+        public List<Vector2> uv;
+    }
+
+    public struct FaceDataRaw
+    {
+        public static readonly Dictionary<Faces, List<Vector3>> rawVertexData = new Dictionary<Faces, List<Vector3>>
+        {
+            {Faces.FRONT, new List<Vector3>()
+            {
+                new Vector3(-0.5f, 0.5f, 0.5f), // topleft vert
+                new Vector3(0.5f, 0.5f, 0.5f), // topright vert
+                new Vector3(0.5f, -0.5f, 0.5f), // bottomright vert
+                new Vector3(-0.5f, -0.5f, 0.5f), // bottomleft vert
+            } },
+            {Faces.BACK, new List<Vector3>()
+            {
+                new Vector3(0.5f, 0.5f, -0.5f), // topleft vert
+                new Vector3(-0.5f, 0.5f, -0.5f), // topright vert
+                new Vector3(-0.5f, -0.5f, -0.5f), // bottomright vert
+                new Vector3(0.5f, -0.5f, -0.5f), // bottomleft vert
+            } },
+            {Faces.LEFT, new List<Vector3>()
+            {
+                new Vector3(-0.5f, 0.5f, -0.5f), // topleft vert
+                new Vector3(-0.5f, 0.5f, 0.5f), // topright vert
+                new Vector3(-0.5f, -0.5f, 0.5f), // bottomright vert
+                new Vector3(-0.5f, -0.5f, -0.5f), // bottomleft vert
+            } },
+            {Faces.RIGHT, new List<Vector3>()
+            {
+                new Vector3(0.5f, 0.5f, 0.5f), // topleft vert
+                new Vector3(0.5f, 0.5f, -0.5f), // topright vert
+                new Vector3(0.5f, -0.5f, -0.5f), // bottomright vert
+                new Vector3(0.5f, -0.5f, 0.5f), // bottomleft vert
+            } },
+            {Faces.TOP, new List<Vector3>()
+            {
+                new Vector3(-0.5f, 0.5f, -0.5f), // topleft vert
+                new Vector3(0.5f, 0.5f, -0.5f), // topright vert
+                new Vector3(0.5f, 0.5f, 0.5f), // bottomright vert
+                new Vector3(-0.5f, 0.5f, 0.5f), // bottomleft vert
+            } },
+            {Faces.BOTTOM, new List<Vector3>()
+            {
+                new Vector3(-0.5f, -0.5f, 0.5f), // topleft vert
+                new Vector3(0.5f, -0.5f, 0.5f), // topright vert
+                new Vector3(0.5f, -0.5f, -0.5f), // bottomright vert
+                new Vector3(-0.5f, -0.5f, -0.5f), // bottomleft vert
+            } },
+        };
+    }
+}﻿using VoxelTK.Graphics;
+using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using VoxelTK.World;
+
+namespace VoxelTK.World
+{
+    internal class Chunk
+    {
+        public List<Vector3> chunkVerts;
+        public List<Vector2> chunkUVs;
+        public List<uint> chunkIndices;
+
+        const int SIZE = 16;
+        const int HEIGHT = 384;
+        public Vector3 position;
+
+        public uint indexCount;
+
+        VAO chunkVAO;
+        VBO chunkVertexVBO;
+        VBO chunkUVVBO;
+        IBO chunkIBO;
+
+        Texture texture;
+
+        Block[,,] chunkBlocks = new Block[SIZE, HEIGHT, SIZE];
+
+        public Chunk(Vector3 position)
+        {
+            this.position = position;
+
+            chunkVerts = new List<Vector3>();
+            chunkUVs = new List<Vector2>();
+            chunkIndices = new List<uint>();
+
+            float[,] heightmap = GenChunk();
+            GenBlocks(heightmap);
+            GenFaces(heightmap);
+            BuildChunk();
+        }
+
+        public float[,] GenChunk()
+        {
+            float[,] heightmap = new float[SIZE, SIZE];
+
+            SimplexNoise.Noise.Seed = 123456;
+            for (int x = 0; x < SIZE; x++)
+            {
+                for (int z = 0; z < SIZE; z++)
+                {
+                    heightmap[x, z] = SimplexNoise.Noise.CalcPixel2D(x, z, 0.01f);
+                }
+            }
+
+            return heightmap;
+        }
+
+        public void GenBlocks(float[,] heightmap)
+        {
+            for (int x = 0; x < SIZE; x++)
+            {
+                for (int z = 0; z < SIZE; z++)
+                {
+                    int columnHeight = (int)(heightmap[x, z] / 10);
+                    for (int y = 0; y < HEIGHT; y++)
+                    {
+                        if (y < columnHeight)
+                        {
+                            chunkBlocks[x, y, z] = new Block(new Vector3(x, y, z), BlockType.DIRT);
+                        }
+                        else
+                        {
+                            chunkBlocks[x, y, z] = new Block(new Vector3(x, y, z), BlockType.AIR);
+                        }
+                    }
+                }
+            }
+        }
+
+        public void GenFaces(float[,] heightmap)
+        {
+            for (int x = 0; x < SIZE; x++)
+            {
+                for (int z = 0; z < SIZE; z++)
+                {
+                    int columnHeight = (int)(heightmap[x, z] / 10);
+                    for (int y = 0; y < columnHeight; y++)
+                    {
+                        int numFaces = 0;
+
+                        // Left Face
+                        if (x > 0)
+                        {
+                            if (chunkBlocks[x - 1, y, z].type == BlockType.AIR)
+                            {
+                                IntegrateFace(chunkBlocks[x, y, z], Faces.LEFT);
+                                numFaces++;
+                            }
+                        }
+                        else
+                        {
+                            IntegrateFace(chunkBlocks[x, y, z], Faces.LEFT);
+                            numFaces++;
+                        }
+
+                        // Right Face
+                        if (x < SIZE - 1)
+                        {
+                            if (chunkBlocks[x + 1, y, z].type == BlockType.AIR)
+                            {
+                                IntegrateFace(chunkBlocks[x, y, z], Faces.RIGHT);
+                                numFaces++;
+                            }
+                        }
+                        else
+                        {
+                            IntegrateFace(chunkBlocks[x, y, z], Faces.RIGHT);
+                            numFaces++;
+                        }
+
+                        // Top Face
+                        if (y < columnHeight - 1)
+                        {
+                            if (chunkBlocks[x, y + 1, z].type == BlockType.AIR)
+                            {
+                                IntegrateFace(chunkBlocks[x, y, z], Faces.TOP);
+                                numFaces++;
+                            }
+                        }
+                        else
+                        {
+                            IntegrateFace(chunkBlocks[x, y, z], Faces.TOP);
+                            numFaces++;
+                        }
+
+                        // Bottom Face
+                        if (y > 0)
+                        {
+                            if (chunkBlocks[x, y - 1, z].type == BlockType.AIR)
+                            {
+                                IntegrateFace(chunkBlocks[x, y, z], Faces.BOTTOM);
+                                numFaces++;
+                            }
+                        }
+                        else
+                        {
+                            IntegrateFace(chunkBlocks[x, y, z], Faces.BOTTOM);
+                            numFaces++;
+                        }
+
+                        // Front Face
+                        if (z < SIZE - 1)
+                        {
+                            if (chunkBlocks[x, y, z + 1].type == BlockType.AIR)
+                            {
+                                IntegrateFace(chunkBlocks[x, y, z], Faces.FRONT);
+                                numFaces++;
+                            }
+                        }
+                        else
+                        {
+                            IntegrateFace(chunkBlocks[x, y, z], Faces.FRONT);
+                            numFaces++;
+                        }
+
+                        // Back Face
+                        if (z > 0)
+                        {
+                            if (chunkBlocks[x, y, z - 1].type == BlockType.AIR)
+                            {
+                                IntegrateFace(chunkBlocks[x, y, z], Faces.BACK);
+                                numFaces++;
+                            }
+                        }
+                        else
+                        {
+                            IntegrateFace(chunkBlocks[x, y, z], Faces.BACK);
+                            numFaces++;
+                        }
+
+                        AddIndices(numFaces);
+                    }
+                }
+            }
+        }
+
+        public void IntegrateFace(Block block, Faces face)
+        {
+            var faceData = block.GetFace(face);
+            chunkVerts.AddRange(faceData.vertices);
+            chunkUVs.AddRange(faceData.uv);
+        }
+
+        public void AddIndices(int amtFaces)
+        {
+            for (int i = 0; i < amtFaces; i++)
+            {
+                chunkIndices.Add(0 + indexCount);
+                chunkIndices.Add(1 + indexCount);
+                chunkIndices.Add(2 + indexCount);
+                chunkIndices.Add(2 + indexCount);
+                chunkIndices.Add(3 + indexCount);
+                chunkIndices.Add(0 + indexCount);
+
+                indexCount += 4;
+            }
+        }
+
+        public void BuildChunk()
+        {
+            chunkVAO = new VAO();
+            chunkVAO.Bind();
+
+            chunkVertexVBO = new VBO(chunkVerts);
+            chunkVertexVBO.Bind();
+            chunkVAO.LinkToVAO(0, 3, chunkVertexVBO);
+
+            chunkUVVBO = new VBO(chunkUVs);
+            chunkUVVBO.Bind();
+            chunkVAO.LinkToVAO(1, 2, chunkUVVBO);
+
+            chunkIBO = new IBO(chunkIndices);
+
+            texture = new Texture("Textures/block/grass_block_top.png");
+        }
+
+        public void Render(ShaderProgram program)
+        {
+            program.Bind();
+            chunkVAO.Bind();
+            chunkIBO.Bind();
+            texture.Bind();
+            GL.DrawElements(PrimitiveType.Triangles, chunkIndices.Count, DrawElementsType.UnsignedInt, 0);
+        }
+
+        public void Delete()
+        {
+            chunkVAO.Delete();
+            chunkVertexVBO.Delete();
+            chunkUVVBO.Delete();
+            chunkIBO.Delete();
+            texture.Delete();
+        }
+    }
+}
